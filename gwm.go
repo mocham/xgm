@@ -1,14 +1,33 @@
-package main
+package xgm
 import (
 	"sync/atomic"
 	"strings"
 	"slices"
+	"math"
 	"github.com/mocham/xgw"
+	"path/filepath"
 	"sort"
 )
+type Window = xgw.Window
 const tilePref, hijackedPref, stickyPref = "tile-", "auto-", "auto-sticky"
-var deskLock uint32
-func setBarData(win Window, data string) {
+var (
+	deskLock uint32
+	Desktops []string
+    BarXImage *xgw.XImage
+	HasVM bool
+	keyMap = make(map[int][]string)
+	PositionFlag int
+)
+func logAndExit(errs ...error) { xgw.LogAndExit(Cleanup, errs...) }
+
+func GetIcon(base string) string {
+	if ret, exists := Conf.FileIcon[filepath.Ext(base)]; exists { return ret }
+	return Conf.FileIcon["default"]
+}
+
+func ExtInGroup(group, file string) bool { return slices.Contains(Conf.Exts[group], filepath.Ext(file)) }
+
+func SetBarData(win Window, data string) {
     xgw.WinStates[win] = xgw.WindowState{Mapped: xgw.WinStates[win].Mapped, BarData: data}
 	xgw.SendString(win, xgw.AtomMap[xgw.Conf.BarAtom], data)
 }
@@ -22,34 +41,34 @@ func extractDesktopName(s string) (string, string) {
     return s[:idx - 1], s[idx + 1:]
 }
 
-func adjacentDesktop(delta int) {
-	if xgw.DeskID += delta; xgw.DeskID >= len(desktops) { xgw.DeskID = 0 }
-	if xgw.DeskID < 0 { xgw.DeskID = len(desktops) - 1 }
-    if desktops[xgw.DeskID] == "vm" { xgw.DeskID = 0 }
-    showDesktop(desktops[xgw.DeskID])
+func AdjacentDesktop(delta int) {
+	if xgw.DeskID += delta; xgw.DeskID >= len(Desktops) { xgw.DeskID = 0 }
+	if xgw.DeskID < 0 { xgw.DeskID = len(Desktops) - 1 }
+    if Desktops[xgw.DeskID] == "vm" { xgw.DeskID = 0 }
+    ShowDesktop(Desktops[xgw.DeskID])
 }
 
-func floatWindow(win Window, unfloat bool) {
+func FloatWindow(win Window, unfloat bool) {
 	_, _, w, h := xgw.GetGeometry(win)
 	xgw.ResizeWindow(win, (xgw.Width-w)/2, (xgw.Height-h)/2, w, h)
 	if barData := xgw.WinStates[win].BarData; !strings.HasPrefix(barData, hijackedPref) {
-		setBarData(win, hijackedPref + barData)
+		SetBarData(win, hijackedPref + barData)
 	} else if unfloat && !strings.HasPrefix(barData, stickyPref)  {
-		setBarData(win, tilePref + barData[len(hijackedPref):])
-		tileWindows(0)
+		SetBarData(win, tilePref + barData[len(hijackedPref):])
+		TileWindows(0)
 	}
 }
 
-func updateDesktop(resetCurrent bool) {
+func UpdateDesktop(resetCurrent bool) {
     if atomic.LoadUint32(&deskLock) == 1 { return }
 	atomic.StoreUint32(&deskLock, 1)
 	defer atomic.StoreUint32(&deskLock, 0)
 	keys := make(map[string]bool)
-	ucfg.hasVM, xgw.DesktopWins = false, xgw.DesktopWins[:0]
+	HasVM, xgw.DesktopWins = false, xgw.DesktopWins[:0]
     for win, state := range xgw.WinStates {
-		if win == xgw.BarWindow { continue }
+		if win == BarXImage.Win { continue }
 		_, desk := extractDesktopName(state.BarData)
-		if desk == "vm" { ucfg.hasVM = true }
+		if desk == "vm" { HasVM = true }
 		if desk == "_RAW" || desk == "" { continue }
 		if desk == xgw.CurrentDesktop { xgw.DesktopWins = append(xgw.DesktopWins, win) }
 		keys[desk] = true
@@ -57,15 +76,14 @@ func updateDesktop(resetCurrent bool) {
     }
 	if xgw.CurrentDesktop == "" { xgw.CurrentDesktop = "1" }
     keys[xgw.CurrentDesktop] = true
-    desktops = make([]string, 0, len(keys))
-	for name, _ := range keys { desktops = append(desktops, name) }
-	sort.Strings(desktops)
-	for id, name := range desktops { if name == xgw.CurrentDesktop { xgw.DeskID = id } }
-	drawDesktopInfo()
+    Desktops = make([]string, 0, len(keys))
+	for name, _ := range keys { Desktops = append(Desktops, name) }
+	sort.Strings(Desktops)
+	for id, name := range Desktops { if name == xgw.CurrentDesktop { xgw.DeskID = id } }
 }
 
-func nextFocus(update bool) {
-	if update { updateDesktop(true) }
+func NextFocus(update bool) {
+	if update { UpdateDesktop(true) }
 	visited, joined := false, slices.Concat(xgw.DesktopWins, xgw.StickyWins)
     if len(joined) == 0 { return }
 	sort.Slice(joined, func(i, j int) bool { return joined[i] < joined[j] })
@@ -76,10 +94,10 @@ func nextFocus(update bool) {
 	xgw.FocusSet(joined[0])
 }
 
-func tileWindows(extraWin Window) {
+func TileWindows(extraWin Window) {
 	cands, top, fId := []Window{}, 0, 0
-	if updateDesktop(true); ucfg.positionFlag != 0 { top = xgw.GlyphHeight }
-    for _, win := range xgw.DesktopWins { if barData := xgw.WinStates[win].BarData; win != xgw.BarWindow && win != extraWin && xgw.WinStates[win].Mapped && !strings.Contains(barData, hijackedPref) && strings.Contains(barData, tilePref) { cands = append(cands, win) } }
+	if UpdateDesktop(true); PositionFlag != 0 { top = xgw.GlyphHeight }
+    for _, win := range xgw.DesktopWins { if barData := xgw.WinStates[win].BarData; win != BarXImage.Win && win != extraWin && xgw.WinStates[win].Mapped && !strings.Contains(barData, hijackedPref) && strings.Contains(barData, tilePref) { cands = append(cands, win) } }
 	if extraWin != 0 { cands = append(cands, extraWin) }
 	sort.Slice(cands, func(i, j int) bool { return cands[i] < cands[j] })
     if len(cands) == 0 { return }
@@ -106,45 +124,45 @@ func tileWindows(extraWin Window) {
 	xgw.ResizeWindow(cands[1-fId], x2, y2, w2, h2)
 }
 
-func windowMap(win Window) {
+func WindowMap(win Window) {
 	barData := xgw.WinStates[win].BarData
 	xgw.DesktopWins, xgw.WinStates[win] = append(xgw.DesktopWins, win), xgw.WindowState{Mapped: true, BarData: barData}
 	arr := strings.Split(barData, "@")
 	if len(arr) <= 4 { return }
-	if arr[1] == "" { if arr[1] = xgw.GetTitle(win); arr[1] != "" { initBarData(win, xgw.CurrentDesktop) } }
-	if barData[len(barData) - 4:] == "_RAW" { setBarData(win, barData[:len(barData) - 4]) }
+	if arr[1] == "" { if arr[1] = xgw.GetTitle(win); arr[1] != "" { InitBarData(win, xgw.CurrentDesktop) } }
+	if barData[len(barData) - 4:] == "_RAW" { SetBarData(win, barData[:len(barData) - 4]) }
 	switch {
 	case strings.Contains(barData, stickyPref): xgw.StickyWins = append(xgw.StickyWins, win); xgw.FocusSet(win)
-	case strings.Contains(barData, hijackedPref): if x, y, w, h := getWindowUserConfig(arr[1]); w > 0 { xgw.ResizeWindow(win, x, y, w, h) } else if w == 0 { floatWindow(win, false) }; xgw.FocusSet(win)
+	case strings.Contains(barData, hijackedPref): if x, y, w, h := getWindowUserConfig(arr[1]); w > 0 { xgw.ResizeWindow(win, x, y, w, h) } else if w == 0 { FloatWindow(win, false) }; xgw.FocusSet(win)
 	case strings.Contains(barData, tilePref): xgw.FocusSet(win)
 	}
 }
 
-func initBarData(win Window, cDesk string) (tiling bool) {
+func InitBarData(win Window, cDesk string) (tiling bool) {
 	title, classParts := xgw.GetTitle(win), strings.Split(string(xgw.QueryBytes(win, "WM_CLASS")), "\x00")
     prefix, suffix, str := "normal", cDesk, strings.Join([]string{title, classParts[0], classParts[len(classParts) - 1]}, "@")
     switch {
     case strings.Contains(str, stickyPref): prefix = stickyPref
     case strings.Contains(str, hijackedPref): prefix = hijackedPref
-    case slices.Contains(ucfg.ForcedTilingClasses, classParts[0]) || strings.Contains(str, tilePref): prefix = tilePref; tiling = true
+    case slices.Contains(Conf.ForcedTilingClasses, classParts[0]) || strings.Contains(str, tilePref): prefix = tilePref; tiling = true
     }
-    setBarData(win, prefix + "@" + str + "@" + suffix)
+    SetBarData(win, prefix + "@" + str + "@" + suffix)
 	return
 }
 
-func moveWindowToDesktop(suffix string, winStr ...string) {
+func MoveWindowToDesktop(suffix string, winStr ...string) {
 	win := xgw.FocusWindow
 	if len(winStr) > 0 { win = Window(xgw.ParseInt(winStr[0])) }
-    if win == 0 || win == xgw.BarWindow || win == xgw.Root { return }
+    if win == 0 || win == BarXImage.Win || win == xgw.Root { return }
 	if suffix != xgw.CurrentDesktop { xgw.Unmap(win) } else { xgw.Map(win) }
 	barType, _ := extractDesktopName(xgw.WinStates[win].BarData)
-	setBarData(win, barType + "@" + suffix)
+	SetBarData(win, barType + "@" + suffix)
 }
 
-func showDesktop(suffix string) {
+func ShowDesktop(suffix string) {
     if len(suffix) == 0 { return }
     xgw.CurrentDesktop = suffix 
-	updateDesktop(false)
+	UpdateDesktop(false)
     unmaps, hasFocus := []Window{}, false
     for win, state := range xgw.WinStates { if state.Mapped && !strings.HasSuffix(state.BarData, suffix) && !strings.HasPrefix(state.BarData, stickyPref) { unmaps = append(unmaps, win) } }
 	raiser := func (win Window) { if !xgw.WinStates[win].Mapped && xgw.Map(win) && !hasFocus { xgw.FocusSet(win); hasFocus = true } }
@@ -153,10 +171,10 @@ func showDesktop(suffix string) {
     for _, win := range unmaps { xgw.Unmap(win) }
 }
 
-func windowUnmap(win Window) {
+func WindowUnmap(win Window) {
 	barData := xgw.WinStates[win].BarData
 	xgw.WinStates[win] = xgw.WindowState{Mapped: false, BarData: barData}
-	if strings.HasSuffix(barData, "@" + xgw.CurrentDesktop) && !strings.HasSuffix(barData, "_RAW") { setBarData(win, barData + "_RAW") }
+	if strings.HasSuffix(barData, "@" + xgw.CurrentDesktop) && !strings.HasSuffix(barData, "_RAW") { SetBarData(win, barData + "_RAW") }
 	if strings.Contains(barData, stickyPref) { 
 		xgw.StickyWins = xgw.RemoveElement(xgw.StickyWins, win) 
 	} else {
@@ -164,17 +182,28 @@ func windowUnmap(win Window) {
 	}
 }
 
-func desktopEventLoop() {
+func DesktopEventLoop(doAction func(...string) string) {
     for {
-        ev, err := barXImage.Conn.WaitForEvent()
+        ev, err := BarXImage.Conn.WaitForEvent()
         if err != nil || ev == nil { continue }
         switch event := ev.(type) {
-        case xgw.EXMap: windowMap(event.Window)
-        case xgw.EXCreate: if initBarData(event.Window, xgw.CurrentDesktop + "_RAW") {tileWindows(event.Window)} 
-        case xgw.EXDestroy: updateDesktop(true); delete(xgw.WinStates, event.Window)
-        case xgw.EXUnmap: windowUnmap(event.Window)
-        case xgw.EXKey: if action, exists := ucfg.keyMap[int(event.State)*10000+int(event.Detail)]; exists { doAction(action...) }; xgw.SetXTime(uint32(event.Time))
-        case xgw.EXSel: if event.Owner == xgw.BarWindow { xgw.UseClipboard(event.Requestor, event.Property, event.Target, event.Selection, event.Time) }
+        case xgw.EXMap: WindowMap(event.Window)
+        case xgw.EXCreate: if InitBarData(event.Window, xgw.CurrentDesktop + "_RAW") {TileWindows(event.Window)} 
+        case xgw.EXDestroy: UpdateDesktop(true); delete(xgw.WinStates, event.Window)
+        case xgw.EXUnmap: WindowUnmap(event.Window)
+        case xgw.EXKey: if action, exists := keyMap[int(event.State)*10000+int(event.Detail)]; exists { doAction(action...) }
+        case xgw.EXSel: if event.Owner == BarXImage.Win { xgw.UseClipboard(event.Requestor, event.Property, event.Target, event.Selection, event.Time) }
         }
     }
+}
+
+func getWindowUserConfig(title string) (int, int, int, int) {
+    eval := func (val float64, whole int) int {
+        flat, ratio := math.Modf(val)
+        if ratio < 0 { ratio = -ratio }
+        if flat < 0 { flat = float64(whole) + flat }
+        return int(flat + ratio * float64(whole))
+    }
+    if arr, exists := Conf.WindowConfigs[title]; exists { return eval(arr[0], xgw.Width), eval(arr[1], xgw.Height), eval(arr[2], xgw.Width), eval(arr[3], xgw.Height) }
+    return -1, -1, -1, -1
 }
