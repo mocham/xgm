@@ -114,8 +114,6 @@ error:
     return NULL;
 }
 
-//////////////////////
-
 int get_card_id() {
     int card_id = -1;
     int max_id = -1;

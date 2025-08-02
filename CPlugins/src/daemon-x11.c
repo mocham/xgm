@@ -62,10 +62,7 @@ int find_pid_by_name(const char *name) {
 }
 
 static volatile sig_atomic_t shutdown_flag = 0;
-
-void mouse_shutdown() {
-   shutdown_flag = 1;
-}
+void mouse_shutdown() { shutdown_flag = 1; }
 
 int monitorMouse(int pid) {
     Display *dpy = XOpenDisplay(NULL);

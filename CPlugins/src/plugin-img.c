@@ -14,7 +14,6 @@ const int IMG_ERROR_RESIZE=3;
 int convert_rgba(uint32_t* pixels, int width, int height) {
     for (int i = 0; i < width * height; i++) {
         const uint32_t px = pixels[i];
-        // Swap R and B channels while preserving G and A
         pixels[i] = (px & 0xFF00FF00) |  // Keep G and A channels
                    ((px & 0x00FF0000) >> 16) |  // R -> B
                    ((px & 0x000000FF) << 16);    // B -> R
@@ -62,7 +61,6 @@ int img_load_bgra(const char *filename, unsigned char **out_pixels, int *out_wid
         *alloc_type = ALLOC_WEBP;
         return IMG_SUCCESS;
     } else if (strstr(filename, ".jpg") || strstr(filename, ".jpeg")) {
-        printf("Use jpeg-turbo\n");
         tjhandle jpeg = tjInitDecompress();
         if (!jpeg) {
             printf("tjInitDecompress failed: %s\n", tjGetErrorStr());
@@ -125,8 +123,6 @@ int img_load_bgra(const char *filename, unsigned char **out_pixels, int *out_wid
             return IMG_SUCCESS;
         }
     }
-
-    printf("stb_image error: %s\n", wrap_stbi_failure_reason());
     return IMG_ERROR_LOAD;
 }
 
@@ -161,7 +157,6 @@ int img_load_bgra_from_memory(const unsigned char *data, int data_len, unsigned 
             return IMG_SUCCESS;
         }
     }
-    printf("stb_image error: %s\n", wrap_stbi_failure_reason());
     return IMG_ERROR_LOAD;
 }
 
@@ -271,7 +266,6 @@ void center_and_extend_image(const char* input_path, const char* output_path, in
 int save_png(const unsigned char* pixels, int width, int height, const char* filename) {
     return wrap_stbi_write_png(filename, width, height, 4, pixels, width * 4);
 }
-////////////////////////////////////////////////
 
 char* encode_rgba_to_webp(const uint8_t* rgba, int width, int height, int stride, float quality_factor, size_t* output_size) {
     WebPPicture picture;
@@ -291,12 +285,7 @@ char* encode_rgba_to_webp(const uint8_t* rgba, int width, int height, int stride
     WebPMemoryWriterInit(&writer);
 
     // Import RGBA data
-    if (!WebPPictureImportRGBA(&picture, rgba, stride)) {
-        WebPPictureFree(&picture);
-        return NULL;
-    }
-
-    if (!WebPEncode(&config, &picture)) {
+    if (!WebPPictureImportRGBA(&picture, rgba, stride) || !WebPEncode(&config, &picture)) {
         WebPPictureFree(&picture);
         return NULL;
     }
