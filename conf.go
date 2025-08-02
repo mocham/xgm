@@ -30,6 +30,8 @@ type UserConfig struct {
     Proxy string `json:"proxy"`
     ForcedTilingClasses []string `json:"forced_tiling_classes"`
     KeyBindings map[string][]string `json:"key_bindings"`
+	SpotlightInclude []string `json:"spotlight_include"`
+    SpotlightExclude []string `json:"spotlight_exclude"`
     Terminals map[string]struct {
         Args []string `json:"args"`
         RequiresExecutable bool `json:"requires_executable"`
