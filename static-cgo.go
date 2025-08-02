@@ -43,11 +43,14 @@ func init() {
 	logAndExit(os.WriteFile("/tmp/alsa.conf", alsaConf, 0644))
 	os.Setenv("ALSA_CONFIG_PATH", "/tmp/alsa.conf")
 	C.init_alsa() 
+	go initMouseMonitor()
 }
 
 func Cleanup() {
+	if mouseProcess != nil { mouseProcess.Kill(); mouseProcess = nil}
 	if BarXImage != nil { BarXImage.Destroy() }
 	if pynFlag { C.cleanup_pinyin() }
+	xgw.Cleanup()
 }
 
 func SwitchAlsaMode() { C.switch_alsa_mode() }

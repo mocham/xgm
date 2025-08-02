@@ -1,6 +1,7 @@
 package xgm
 import (
 	"sync/atomic"
+	"fmt"
 	"strings"
 	"slices"
 	"math"
@@ -207,3 +208,5 @@ func getWindowUserConfig(title string) (int, int, int, int) {
     if arr, exists := Conf.WindowConfigs[title]; exists { return eval(arr[0], xgw.Width), eval(arr[1], xgw.Height), eval(arr[2], xgw.Width), eval(arr[3], xgw.Height) }
     return -1, -1, -1, -1
 }
+
+func TreeInfo(prefix string, root Window) (ret string) { xgw.QueryTree(root, func (win Window){ ret += fmt.Sprintf("%v - %v - PID [%d]\n%s", win, xgw.WinStates[win], xgw.GetWindowPID(win), TreeInfo(prefix + "...", win)) }); return }
