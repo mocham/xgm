@@ -30,6 +30,14 @@ func main() {
 		if fn[0] != '/' { fn = filepath.Join(os.Getenv("PWD"), fn)}
 		send(fmt.Sprintf("%s\n%s", strings.ToUpper(args[1]), fn))
 	}
+	case "purge": if len(args) >= 3 {
+		if args[2] == "vm" { printPurgable(vmKeepPkgs) }
+		if args[2] == "laptop" { printPurgable(laptopKeepPkgs) }
+	}
+	case "git": if len(args) >= 3 {
+		if args[2] == "sync" && len(args) >= 5 { gitSync(args[3], args[4]) }
+	}
+	case "meminfo": printMeminfo(args[1:]...)
 	case "eopen": if len(args) >= 3 {send(fmt.Sprintf("EXTERNAL\n%s", args[2])) }
 	case "msg": if data, err := io.ReadAll(os.Stdin); err == nil { sendRaw(data) }
 	case "args": send(strings.Join(args[2:], "\n"))
