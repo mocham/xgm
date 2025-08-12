@@ -36,7 +36,9 @@ func main() {
 	}
 	case "git": if len(args) >= 3 {
 		if args[2] == "sync" && len(args) >= 5 { gitSync(args[3], args[4]) }
+		if args[2] != "sync" { sandBoxedGit("", args[2:]...) }
 	}
+	case "jup": sandboxedJupyter(args[1:]...)
 	case "meminfo": printMeminfo(args[1:]...)
 	case "eopen": if len(args) >= 3 {send(fmt.Sprintf("EXTERNAL\n%s", args[2])) }
 	case "msg": if data, err := io.ReadAll(os.Stdin); err == nil { sendRaw(data) }

@@ -24,6 +24,12 @@ func findGitRoot(dir string) (string, error) {
 }
 
 func sandBoxedGit(gitDir string, args ...string) error {
+	if gitDir == "" {
+		cwd, err := os.Getwd()
+		if err != nil { return err }
+		gitDir, err = findGitRoot(cwd)
+		if err != nil { return err }
+	}
 	cmd := exec.Command("docker", append([]string{
 		"run", "--rm", "-it",
 		"--net=host",
