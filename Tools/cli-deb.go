@@ -12,11 +12,9 @@ var laptopKeepPkgs = []string{
 	"iptables", "procps", "iputils-ping", "locales", "uidmap",
 	"xinit", "xserver-xorg-input-libinput", "mawk", "tzdata",
 	// Networking
-	"openssh-server", "rsync", "iproute2",
-	// QoL packages
-	"ca-certificates", "usr-is-merged", "gpgv", "vim*",
-	// Hard dependencies
-	"linux-image", "sed", "libpam-systemd", "dash",
+	"openssh-server", "iproute2", "ca-certificates", "libpopt0",
+    // Hard dependencies
+	"linux-image", "sed", "libpam-systemd", "dash", "usr-is-merged", "gpgv",
 	// Essential packages
 	"bsdutils", "base-passwd", "bash", "findutils", "grep", "gzip", "hostname",
 	"init", "libc-bin", "login", "ncurses-base", "ncurses-bin", "util-linux",
@@ -27,11 +25,9 @@ var vmKeepPkgs = []string {
 	// Obsolete: "fonts-dejavu-core", "libxft2", "libxi6", "libxcursor1", 
     "procps", "xinit", "xserver-xorg-input-evdev", "xserver-xorg-core",
     // Networking 
-    "openssh-client", "rsync", "iproute2", "ca-certificates", "iputils-ping",
-    // QoL packages
-    "usr-is-merged", "gpgv", "vim*",
+    "openssh-client", "iproute2", "ca-certificates", "iputils-ping", "libpopt0",
     // Hard dependencies
-    "linux-image", "sed", "libpam-systemd", "dash", "mawk",
+    "linux-image", "sed", "libpam-systemd", "dash", "mawk", "usr-is-merged", "gpgv",
     // Essential packages
     "bsdutils", "base-passwd", "bash", "findutils", "grep", "gzip", "hostname",
     "init", "libc-bin", "login", "ncurses-base", "ncurses-bin", "util-linux",

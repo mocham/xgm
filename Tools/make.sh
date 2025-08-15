@@ -4,7 +4,6 @@ DIMG="make"
 go() {
     docker run -it --rm \
         -e GOPATH="/go" \
-        -e PATH="/usr/bin/path:/usr/bin:/home/linuxbrew/.linuxbrew/bin" \
         -v $HOME/.local/go:/go:rw \
         -v $HOME/.cache/go-build:/root/.cache/go-build:rw \
         -v /opt/Runtime/Docker-Home/go:/root/.config/go:rw \
